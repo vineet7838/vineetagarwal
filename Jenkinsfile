@@ -27,7 +27,7 @@ pipeline
                    steps
                    {
                       echo "build in master branch - 2"
-                      bat "mvn clean install -Dhttps.protocols=TLSv1.2"
+                      sh "mvn clean install -Dhttps.protocols=TLSv1.2"
                    }
 
               }
