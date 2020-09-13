@@ -3,7 +3,7 @@ pipeline
        agent any 
           tools
           {
-              maven 'MAVEN3'
+              maven 'Maven3'
           }        
           options
        {
@@ -77,32 +77,32 @@ pipeline
               {
                   steps
                   {
-                       sh '/usr/local/bin/docker build -t dtr.nagarro.com:443/image_vineetagarwal_master:${BUILD_NUMBER} .'
+                       sh '/usr/local/bin/docker build -t dtr.nagarro.com:443/i_vineetagarwal_master:${BUILD_NUMBER} .'
                   }
               }
               stage('Push to DTR') {
                   steps{
-                          sh '/usr/local/bin/docker push dtr.nagarro.com:443/image_vineetagarwal_master:${BUILD_NUMBER}'
+                          sh '/usr/local/bin/docker push dtr.nagarro.com:443/i_vineetagarwal_master:${BUILD_NUMBER}'
                   }
               }
               stage('Stop running containers') 
               {
 		  steps{
                      sh '''
-                     ContainerId=$(/usr/local/bin/docker ps | grep 6000 | cut -d " " -f 1)
+                     ContainerId=$(/usr/local/bin/docker ps | grep 6200 | cut -d " " -f 1)
                      if [ $ContainerId ]
                      then
                      docker stop ContainerId
                      docker rm -f $ContainerId
                      fi
                      '''
-                      sh '/usr/local/bin/docker stop container_vineetagarwal_master || exit 0 && /usr/local/bin/docker rm container_vineetagarwal_master || exit 0'
+                      sh '/usr/local/bin/docker stop c_vineetagarwal_master || exit 0 && /usr/local/bin/docker rm c_vineetagarwal_master || exit 0'
                   }
               }
               stage('Docker deployment') 
               {
                  steps{
-                     sh '/usr/local/bin/docker run -d --name container_vineetagarwal_master -p 6000:8080 -t dtr.nagarro.com:443/image_vineetagarwal_master:${BUILD_NUMBER}'
+                     sh '/usr/local/bin/docker run -d --name c_vineetagarwal_master -p 6000:8080 -t dtr.nagarro.com:443/i_vineetagarwal_master:${BUILD_NUMBER}'
                  }
               }
             
