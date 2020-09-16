@@ -1,111 +1,97 @@
-pipeline 
-{   
-       agent any 
-          tools
-          {
-              maven 'Maven3'
-          }        
-          options
-       {
-  
-          skipDefaultCheckout()
+pipeline {
+    agent any
 
-          disableConcurrentBuilds()
+    parameters {
+        string(name: 'dockerRegistry', defaultValue: 'dtr.nagarro.com:443');
+        string(name: 'username', defaultValue: 'vineetagarwal');
+        string(name: 'dockerPort', defaultValue: '6000');
+        string(name: 'helmPort', defaultValue: '30157');
+    }
+
+    tools {
+        maven 'Maven3'
+        jdk 'Java'
+    }
+    options {
+        timestamps()
+
+        timeout(time: 1, unit: 'HOURS')
+
+        skipDefaultCheckout()
+
+        buildDiscarder(logRotator(daysToKeepStr: '10', numToKeepStr: '10'))
+
+        disableConcurrentBuilds()
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "STEP - Checkout master branch"
+                checkout scm
+            }
+        }
+        stage('Build') {
+            steps {
+                echo "STEP - Build master branch"
+                bat "mvn clean install"
+            }
+        }
+        stage('Unit Testing') {
+            steps {
+                echo "STEP - Execute unit tests on master branch"
+                bat "mvn test"
+            }
+        }
+        stage ('Sonar Analysis') {
+            steps {
+                echo "STEP - Sonar Analysis on master branch"
+                withSonarQubeEnv("Test_Sonar")
+                {
+                    bat "mvn sonar:sonar"
+                }
+            }
+        }
+        stage ('Upload to Artifactory') {
+            steps {
+                echo "STEP - Artifactory upload on master branch"
+                rtMavenDeployer (
+                    id: 'deployer',
+                    serverId: '123456789@artifactory',
+                    releaseRepo: 'CI-Automation-JAVA',
+                    snapshotRepo: 'CI-Automation-JAVA'
+                )
+                rtMavenRun (
+                    pom: 'pom.xml',
+                    goals: 'clean install',
+                    deployerId: 'deployer'
+                )
+                rtPublishBuildInfo (
+                    serverId: '123456789@artifactory'
+                )
+            }
        }
-       stages
-       {
-          stage ('checkout')
-              {
-                   steps
-                   {
-                      echo "build in master branch - 1"
-                            checkout scm
-                   }
-              }
-              stage ('Build')
-              {
-                   steps
-                   {
-                      echo "build in master branch - 2"
-                      sh "mvn clean install -Dhttps.protocols=TLSv1.2"
-                   }
-
-              }
-              stage ('Unit Testing')
-              {
-                   steps
-                   {
-                      sh "mvn test"
-                   }
-
-              }
-              stage ('Sonar Analysis')
-              {
-                   steps
-                   {
-                      withSonarQubeEnv("Test_Sonar")
-                      {
-                      sh "mvn sonar:sonar -Dhttps.protocols=TLSv1.2"
-                      }
-                   }
-
-              }
-	      stage ('Upload to Artifactory')
-              {
-                  steps
-                  {
-                      rtMavenDeployer(
-                        id: 'deployer',
-                        serverId: '123456789@artifactory',
-                        releaseRepo : 'CI-Automation-JAVA',
-                        snapshotRepo: 'CI-Automation-JAVA'
-                        )
-
-                      rtMavenRun(
-                        pom: 'pom.xml',
-                        goals: 'clean install',
-                        deployerId: 'deployer'
-                        )
-       
-                      rtPublishBuildInfo(
-                        serverId: '123456789@artifactory'
-                       )
-                  }
-
-              }
-              stage('Docker image') 
-              {
-                  steps
-                  {
-                       sh '/usr/local/bin/docker build -t dtr.nagarro.com:443/i_vineetagarwal_master:${BUILD_NUMBER} .'
-                  }
-              }
-              stage('Push to DTR') {
-                  steps{
-                          sh '/usr/local/bin/docker push dtr.nagarro.com:443/i_vineetagarwal_master:${BUILD_NUMBER}'
-                  }
-              }
-              stage('Stop running containers') 
-              {
-		  steps{
-                     sh '''
-                     ContainerId=$(/usr/local/bin/docker ps | grep 6200 | cut -d " " -f 1)
-                     if [ $ContainerId ]
-                     then
-                     docker stop ContainerId
-                     docker rm -f $ContainerId
-                     fi
-                     '''
-                      sh '/usr/local/bin/docker stop c_vineetagarwal_master || exit 0 && /usr/local/bin/docker rm c_vineetagarwal_master || exit 0'
-                  }
-              }
-              stage('Docker deployment') 
-              {
-                 steps{
-                     sh '/usr/local/bin/docker run -d --name c_vineetagarwal_master -p 6000:8080 -t dtr.nagarro.com:443/i_vineetagarwal_master:${BUILD_NUMBER}'
-                 }
-              }
-            
-             
-       }
+        stage('Docker Image') {
+            steps {
+                echo "STEP - Docker image for master branch with build number: ${BUILD_NUMBER}"
+                bat "docker build -t ${params.dockerRegistry}/i_${params.username}_master:${BUILD_NUMBER} --no-cache -f Dockerfile ."
+            }
+        }
+		stage ('Push to DTR') {
+            steps {
+				echo "STEP - Docker push for master branch"
+                bat "docker push ${params.dockerRegistry}/i_${params.username}_master:${BUILD_NUMBER}"
+            }
+        }
+        stage('Docker deployment') { 
+            steps {
+                echo 'STEP - Deploy to docker '
+                bat "docker run --name c_${params.username}_master -d -p ${params.dockerPort}:8080 ${params.dockerRegistry}/i_${params.username}_master:${BUILD_NUMBER}"
+            }
+        }
+    }
+    post {
+        always {
+            junit 'target/surefire-reports/*.xml'
+        }
+    }
 }

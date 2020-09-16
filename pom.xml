@@ -188,6 +188,6 @@
 				<directory>src/main/webapp</directory>
 			</testResource>
 		</testResources>
-		<finalName>vineetagarwal</finalName>
+		<finalName>devopssampleapplication</finalName>
 	</build>
 </project>
